@@ -1,0 +1,132 @@
+name: CI/CD - DamnCRUD Functional Testing
+
+on:
+  push:
+    branches: [ "main", "uas2026" ]
+  pull_request:
+    branches: [ "main", "uas2026" ]
+
+jobs:
+  functional-tests:
+    name: Selenium Pytest (Parallel)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root123
+          MYSQL_DATABASE: badcrud
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot123"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup PHP + Apache ─────────────────────────────────────────────
+      - name: Install PHP & Apache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y apache2 php libapache2-mod-php php-mysql php-mbstring
+          sudo a2enmod rewrite
+          sudo cp -r $GITHUB_WORKSPACE /var/www/html/DamnCRUD-uas2026
+          sudo chown -R www-data:www-data /var/www/html/DamnCRUD-uas2026
+          sudo systemctl restart apache2
+
+      # ── 3. Seed database ──────────────────────────────────────────────────
+      - name: Import database
+        run: |
+          mysql -h 127.0.0.1 -u root -proot123 badcrud < db/damncrud.sql || true
+          # Sesuaikan nama database dari 'damncrud' ke 'badcrud' agar match functions.php
+          mysql -h 127.0.0.1 -u root -proot123 << 'SQL'
+            CREATE DATABASE IF NOT EXISTS badcrud;
+            USE badcrud;
+            CREATE TABLE IF NOT EXISTS contacts (
+              id int(11) NOT NULL AUTO_INCREMENT,
+              name varchar(255) NOT NULL,
+              email varchar(255) NOT NULL,
+              phone varchar(255) NOT NULL,
+              title varchar(255) NOT NULL,
+              created datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (id)
+            );
+            CREATE TABLE IF NOT EXISTS users (
+              id_user int(2) NOT NULL AUTO_INCREMENT,
+              username varchar(50) DEFAULT NULL,
+              password varchar(255) DEFAULT NULL,
+              PRIMARY KEY (id_user)
+            );
+            INSERT IGNORE INTO users (id_user, username, password) VALUES
+              (1, 'admin', '9feac9a05349e4ccc78fb9d9b4ab61b33f868c7f8b8acd56dc7303c1af0cb7ca');
+            INSERT IGNORE INTO contacts (id, name, email, phone, title) VALUES
+              (1, 'John Does', 'johndoe@example.com', '2026550143', 'Judge'),
+              (2, 'David Deacon', 'daviddeacon@example.com', '2025550121', 'Security');
+          SQL
+
+      # ── 4. Setup Python ───────────────────────────────────────────────────
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── 5. Setup Chrome (untuk Selenium) ──────────────────────────────────
+      - name: Setup Chrome & ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Verify Chrome & ChromeDriver
+        run: |
+          google-chrome --version
+          chromedriver --version
+
+      # ── 6. Tunggu Apache siap ─────────────────────────────────────────────
+      - name: Wait for Apache to be ready
+        run: |
+          for i in {1..15}; do
+            curl -s http://localhost/DamnCRUD-uas2026/login.php && break
+            echo "Waiting for Apache... attempt $i"
+            sleep 3
+          done
+
+      # ── 7. Jalankan test secara PARALEL dengan pytest-xdist ───────────────
+      - name: Run Selenium Tests (Parallel)
+        run: |
+          pytest tests/test_damncrud.py \
+            -v \
+            -n auto \
+            --tb=short \
+            --junit-xml=test-results/results.xml \
+            --html=test-results/report.html \
+            --self-contained-html
+        env:
+          BASE_URL: "http://localhost/DamnCRUD-uas2026"
+
+      # ── 8. Upload hasil test ──────────────────────────────────────────────
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 30
+
+      # ── 9. Publish JUnit results ──────────────────────────────────────────
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-results/results.xml
