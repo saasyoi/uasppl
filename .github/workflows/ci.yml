@@ -63,7 +63,7 @@ jobs:
               PRIMARY KEY (id_user)
             );
             INSERT IGNORE INTO users (id_user, username, password) VALUES
-              (1, 'admin', '9feac9a05349e4ccc78fb9d9b4ab61b33f868c7f8b8acd56dc7303c1af0cb7ca');
+              (1, 'admin', 'cd7af172a7a9165ff9f8e74a78d7bbabcc4fe878c723d2b8894f6d74217c4a08');
             INSERT IGNORE INTO contacts (id, name, email, phone, title) VALUES
               (1, 'John Does', 'johndoe@example.com', '2026550143', 'Judge'),
               (2, 'David Deacon', 'daviddeacon@example.com', '2025550121', 'Security');
