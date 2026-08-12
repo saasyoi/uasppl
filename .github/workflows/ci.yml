@@ -8,8 +8,13 @@ on:
 
 jobs:
   functional-tests:
-    name: Selenium Pytest (Parallel)
+    name: Selenium Pytest
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      checks: write
+      pull-requests: write
 
     services:
       mysql:
@@ -101,12 +106,11 @@ jobs:
             sleep 3
           done
 
-      # ── 7. Jalankan test secara PARALEL dengan pytest-xdist ───────────────
-      - name: Run Selenium Tests (Parallel)
+      # ── 7. Jalankan test secara Sekuensial (mengurangi conflict DB) ────────
+      - name: Run Selenium Tests
         run: |
           pytest tests/test_damncrud.py \
             -v \
-            -n auto \
             --tb=short \
             --junit-xml=test-results/results.xml \
             --html=test-results/report.html \
