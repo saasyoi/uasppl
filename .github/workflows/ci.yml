@@ -15,12 +15,12 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: root123
-          MYSQL_DATABASE: badcrud
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: damncrud
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -u root -proot123"
+          --health-cmd="mysqladmin ping -h localhost -u root"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -43,11 +43,10 @@ jobs:
       # ── 3. Seed database ──────────────────────────────────────────────────
       - name: Import database
         run: |
-          mysql -h 127.0.0.1 -u root -proot123 badcrud < db/damncrud.sql || true
-          # Sesuaikan nama database dari 'damncrud' ke 'badcrud' agar match functions.php
-          mysql -h 127.0.0.1 -u root -proot123 << 'SQL'
-            CREATE DATABASE IF NOT EXISTS badcrud;
-            USE badcrud;
+          mysql -h 127.0.0.1 -u root damncrud < db/damncrud.sql || true
+          mysql -h 127.0.0.1 -u root << 'SQL'
+            CREATE DATABASE IF NOT EXISTS damncrud;
+            USE damncrud;
             CREATE TABLE IF NOT EXISTS contacts (
               id int(11) NOT NULL AUTO_INCREMENT,
               name varchar(255) NOT NULL,
